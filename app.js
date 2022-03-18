@@ -1,4 +1,5 @@
 // require express and mongoose
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -10,7 +11,11 @@ app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-const uri = 'mongodb://localhost:27017';
+const dbhost = process.env.DBHOST;
+const dbusername = process.env.DBUSERNAME;
+const dbpassword = process.env.DBPASSWORD;
+
+const uri = `mongodb+srv://${dbusername}:${dbpassword}@${dbhost}/pencil-project?retryWrites=true&w=majority`;
 const client = new MongoClient(uri);
 
 app.get('/ping', (req, res) => {
@@ -21,13 +26,29 @@ app.get('/ping', (req, res) => {
 
 app.get('/search', async (req, res) => {
   try {
-    client.connect(() => {
+    await client.connect(async () => {
       console.log('[+] Connected to the cluster...');
-    });
+      const topic = req.query.q;
 
-    const questions = await queryDB(client, req.query.q);
-    res.json({
-      questions,
+      if (!topic) {
+        res.status(404).json({
+          success: false,
+          message: 'No topic provided',
+        });
+      }
+
+      const questions = await queryDB(client, req.query.q);
+      if (questions.length > 0) {
+        res.json({
+          success: true,
+          questions,
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'Invalid topic',
+        });
+      }
     });
   } catch (err) {
     console.error(err);

@@ -18,10 +18,30 @@ const dbpassword = process.env.DBPASSWORD;
 const uri = `mongodb+srv://${dbusername}:${dbpassword}@${dbhost}/pencil-project?retryWrites=true&w=majority`;
 const client = new MongoClient(uri);
 
-app.get('/ping', (req, res) => {
+app.get('/', (req, res) => {
   res.json({
-    success: true,
+    message:
+      'Welcome to the Pencil Project API! Please query /search with a topic or /ping to check the connection with DB ',
   });
+});
+
+app.get('/ping', async (req, res) => {
+  try {
+    await client.connect();
+    await client.db('pencil-project').command({ ping: 1 });
+
+    res.json({
+      success: true,
+      message: 'Connected to database',
+    });
+  } catch (err) {
+    res.json({
+      success: false,
+      message: err,
+    });
+  } finally {
+    await client.close();
+  }
 });
 
 app.get('/search', async (req, res) => {
@@ -37,7 +57,7 @@ app.get('/search', async (req, res) => {
         });
       }
 
-      const questions = await queryDB(client, req.query.q);
+      const questions = await queryDB(client, topic);
       if (questions.length > 0) {
         res.json({
           success: true,
@@ -53,7 +73,7 @@ app.get('/search', async (req, res) => {
   } catch (err) {
     console.error(err);
   } finally {
-    client.close();
+    await client.close();
   }
 });
 

@@ -5,18 +5,25 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { MongoClient } = require('mongodb');
 const { queryDB } = require('./util/dbquery');
+const Redis = require('ioredis');
+
 const app = express();
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-const dbhost = process.env.DBHOST;
-const dbusername = process.env.DBUSERNAME;
-const dbpassword = process.env.DBPASSWORD;
+const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+const redis_client = new Redis(REDIS_URL);
+// PLEASE SET THE BELOW FLAG TO TRUE IF YOU HAVE REDIS INSTALLED LOCALLY
+const redisinstalledlocally = true;
 
-const uri = `mongodb+srv://${dbusername}:${dbpassword}@${dbhost}/pencil-project?retryWrites=true&w=majority`;
-const client = new MongoClient(uri);
+const DBHOST = process.env.DBHOST;
+const DBUSERNAME = process.env.DBUSERNAME;
+const DBPASSWORD = process.env.DBPASSWORD;
+
+const uri = `mongodb+srv://${DBUSERNAME}:${DBPASSWORD}@${DBHOST}/pencil-project?retryWrites=true&w=majority`;
+const mongo_client = new MongoClient(uri);
 
 app.get('/', (req, res) => {
   res.json({
@@ -27,8 +34,8 @@ app.get('/', (req, res) => {
 
 app.get('/ping', async (req, res) => {
   try {
-    await client.connect();
-    await client.db('pencil-project').command({ ping: 1 });
+    await mongo_client.connect();
+    await mongo_client.db('pencil-project').command({ ping: 1 });
 
     res.json({
       success: true,
@@ -40,40 +47,67 @@ app.get('/ping', async (req, res) => {
       message: err,
     });
   } finally {
-    await client.close();
+    await mongo_client.close();
   }
 });
 
 app.get('/search', async (req, res) => {
-  try {
-    await client.connect(async () => {
-      console.log('[+] Connected to the cluster...');
-      const topic = req.query.q;
+  const topic_id = req.query.q;
 
-      if (!topic) {
-        res.status(404).json({
-          success: false,
-          message: 'No topic provided',
-        });
-      }
-
-      const questions = await queryDB(client, topic);
-      if (questions.length > 0) {
-        res.json({
-          success: true,
-          questions,
-        });
-      } else {
-        res.status(404).json({
-          success: false,
-          message: 'Invalid topic',
-        });
-      }
+  if (!topic_id) {
+    res.status(404).json({
+      success: false,
+      message: 'No topic provided',
     });
-  } catch (err) {
-    console.error(err);
-  } finally {
-    await client.close();
+  }
+
+  // check if it is cached before connecting to the cluster
+  const cached_query = await redis_client.get(topic_id);
+
+  if (cached_query && redisinstalledlocally) {
+    console.log('[+] Found cached query');
+    const questions = JSON.parse(cached_query);
+
+    if (questions.length > 0) {
+      res.json({
+        success: true,
+        questions,
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Invalid topic',
+      });
+    }
+  } else {
+    try {
+      await mongo_client.connect(async () => {
+        console.log('[+] Connected to the cluster...');
+
+        const questions = await queryDB(
+          mongo_client,
+          topic_id,
+          redis_client,
+          redisinstalledlocally
+        );
+
+        if (questions.length > 0) {
+          res.json({
+            success: true,
+            questions,
+          });
+        } else {
+          res.status(404).json({
+            success: false,
+            message: 'Invalid topic',
+          });
+        }
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      await mongo_client.close();
+    }
   }
 });
 

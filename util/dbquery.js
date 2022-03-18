@@ -4,10 +4,13 @@ const Redis = require('ioredis');
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const redis_client = new Redis(REDIS_URL);
 
+// PLEASE SET THE BELOW FLAG TO TRUE IF YOU HAVE REDIS INSTALLED LOCALLY
+const redisinstalledlocally = true;
+
 async function queryDB(client, topic_id) {
   const cached_query = await redis_client.get(topic_id);
 
-  if (cached_query) {
+  if (cached_query && redisinstalledlocally) {
     console.log('[+] Found cached query');
     return JSON.parse(cached_query);
   } else {
@@ -89,8 +92,11 @@ async function queryDB(client, topic_id) {
     });
 
     questionsnums.sort((a, b) => a - b);
-    redis_client.set(topic_id, JSON.stringify(questionsnums));
-    console.log('[+] Cached query');
+
+    if (redisinstalledlocally) {
+      redis_client.set(topic_id, JSON.stringify(questionsnums));
+      console.log('[+] Cached query');
+    }
 
     return questionsnums;
   }

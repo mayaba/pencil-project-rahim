@@ -81,7 +81,7 @@ app.get('/search', async (req, res) => {
     }
   } else {
     try {
-      await mongo_client.connect(async () => {
+      mongo_client.connect(async () => {
         console.log('[+] Connected to the cluster...');
 
         const questions = await queryDB(
@@ -102,11 +102,10 @@ app.get('/search', async (req, res) => {
             message: 'Invalid topic',
           });
         }
+        await mongo_client.close();
       });
     } catch (err) {
       console.error(err);
-    } finally {
-      await mongo_client.close();
     }
   }
 });

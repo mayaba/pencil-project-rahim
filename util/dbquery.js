@@ -1,5 +1,3 @@
-const { MongoClient } = require('mongodb');
-
 async function queryDB(
   mongo_client,
   topic_id,

@@ -1,4 +1,3 @@
-// require express and mongoose
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -16,7 +15,7 @@ app.use(bodyParser.json());
 const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
 const redis_client = new Redis(REDIS_URL);
 // PLEASE SET THE BELOW FLAG TO TRUE IF YOU HAVE REDIS INSTALLED LOCALLY
-const redisinstalledlocally = true;
+const redisinstalledlocally = false;
 
 const DBHOST = process.env.DBHOST;
 const DBUSERNAME = process.env.DBUSERNAME;
@@ -99,7 +98,7 @@ app.get('/search', async (req, res) => {
         } else {
           res.status(404).json({
             success: false,
-            message: 'Invalid topic',
+            message: 'Invalid topic or No Questions found',
           });
         }
         await mongo_client.close();
